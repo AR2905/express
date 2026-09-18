@@ -6,7 +6,8 @@ export const errorHandler = (err, req, res, next) => {
   }
   if (err.code === 11000) {
     statusCode = 400;
-    err.message = 'Duplicate value for unique field';
+    const field = Object.keys(err.keyValue || {})[0];
+    err.message = `Duplicate value for field: ${field}`;
   }
 
   res.status(statusCode).json({

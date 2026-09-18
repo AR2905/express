@@ -1,5 +1,10 @@
-import { Error } from 'mongoose';
 import User from '../models/User.js';
+import IdempotencyKey from '../models/IdempotencyKey.js';
+
+const findByIdempotencyKey = async (key) => {
+  const record = await IdempotencyKey.findOne({ key }).populate('userId');
+  return record?.userId;
+};
 
 export const getUsers = async (req, res, next) => {
   try {
@@ -23,10 +28,26 @@ export const getUser = async (req, res, next) => {
 };
 
 export const createUser = async (req, res, next) => {
+  const key = req.get('Idempotency-Key');
   try {
+    if (key) {
+      const existing = await findByIdempotencyKey(key);
+      if (existing) {
+        return res.status(200).json({ success: true, data: existing, duplicate: true });
+      }
+    }
+
     const user = await User.create(req.body);
+    if (key) await IdempotencyKey.create({ key, userId: user._id });
+
     res.status(201).json({ success: true, data: user });
   } catch (error) {
+    if (error?.code === 11000 && key) {
+      const existing = await findByIdempotencyKey(key);
+      if (existing) {
+        return res.status(200).json({ success: true, data: existing, duplicate: true });
+      }
+    }
     next(error);
   }
 };
